@@ -14,7 +14,9 @@
 ```
 
 - 第一行：哪台电脑（`host`）· 哪个 agent。
-- 第二行：现写的 recap —— 拿这次的用户请求 + 最后一条回复，让 `summary.model` 用一句话总结；调不通就退回「最后一条回复的首行」。
+- 第二行：现写的 recap —— 拿这次的用户请求 + 最后一条回复，用**当前这个模型**写一句话总结（Codex 从 `~/.codex/config.toml` 里拿到自己用的端点和 key，Pi 把 live model 直接传过来）；都调不通就退回「最后一条回复的首行」。
+- 所以换模型不用改这里：agent 用什么，recap 就用什么。只有当两个 agent 的端点在这台机器上都不可达时，才需要在 `~/.codex/wxpusher.json` 里手动加一个 `summary`（`base_url` / `api_key` / `model`）当兜底。
+- 有些端点得走本机代理才通（比如这台笔记本到 b.ai，Python 会自动吃 Windows 系统代理，Node 不会）。那就给 `wxpusher.json` 加一个 `proxy`：`node install.mjs --proxy http://127.0.0.1:7897`。 recap 优先走这个代理（在子进程里，只影响摘要），代理挂了会退回直连再试一遍；**推送本身永远直连**，不会被代理带倒。
 - 摘要请求带 `enable_thinking: false`，实测约 3 秒（否则 12 秒）。
 - 两步都在一个后台子进程里跑，agent 不用等；想前台跑就 `WXPUSHER_SYNC=1`，想彻底不推就 `CODEX_STOP_WXPUSHER_DRY_RUN=1`。
 
@@ -24,7 +26,7 @@
 | --- | --- |
 | `send-wxpusher-stop.mjs` | 真正发消息的脚本，装到 `~/.codex/` |
 | `codex-stop-wxpusher.ts` | Pi 扩展，装到 `~/.pi/agent/extensions/`（没装 Pi 就跳过） |
-| `wxpusher.json` | 本机凭据和 recap 模型（已 gitignore，别提交） |
+| `wxpusher.json` | 本机凭据（`spt` / `uids`，已 gitignore，别提交）；`host` / `proxy` 由 install.mjs 按机器保留 |
 | `wxpusher.example.json` | 上面那个文件的模板 |
 | `install.mjs` | 装 / 更新，幂等 |
 
@@ -46,7 +48,8 @@ node install.mjs --host acer             # 装，并给这台机器起个名字
 
 - **收不到消息**：先确认 Codex 已经信任这个 hook。第一次会提示，交互跑一次 `codex` 允许即可；非交互可以 `codex exec --dangerously-bypass-hook-trust`。Pi 侧改了扩展要重开会话或 `/reload`。
 - **改了 `hooks.json`**：Codex 按文件内容记可信状态，重写之后要重新允许一次。所以 `install.mjs` 只在命令真的缺失时才动它，更新脚本内容不会碰到它。
-- **recap 不对/太长**：改 `summary.model`，或调 `send-wxpusher-stop.mjs` 里的 `SUMMARY_PROMPT`。
+- **recap 总是被截断的首行**：说明模型调不通。看 `~/.codex/config.toml` 里 codex 用的端点本机能不能直连；不能就给 `wxpusher.json` 加 `proxy`（`node install.mjs --proxy http://127.0.0.1:7897`）。另外 Node 要 ≥ 24 才认 `NODE_USE_ENV_PROXY`。
+- **recap 不对 / 太长**：改 `send-wxpusher-stop.mjs` 里的 `SUMMARY_PROMPT`。`summary` 块只是兜底（候选链最后一位），agent 自己的端点能调通时它不会被用到。
 - 手测一条（不走 hook，直接前台推）：
 
   ```sh

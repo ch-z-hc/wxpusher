@@ -36,7 +36,26 @@ export default function (pi: ExtensionAPI) {
     }
   });
 
-  pi.on("agent_settled", () => {
+  pi.on("agent_settled", async (_event, ctx) => {
+    const payload: Record<string, unknown> = {
+      last_user_message: lastUser,
+      last_assistant_message: lastAssistant,
+    };
+    // Recap defaults to the model that just answered, so keep its endpoint and
+    // key alongside the id. Only for OpenAI-style APIs: the recap calls
+    // /chat/completions, which an Anthropic-style provider does not serve.
+    const model = ctx.model as any;
+    if (model?.id && typeof model.api === "string" && model.api.startsWith("openai")) {
+      payload.model = model.id;
+      let auth: any;
+      try {
+        auth = await ctx.modelRegistry.getProviderAuth(model.provider);
+      } catch { /* fall back to the script's own endpoint lookup */ }
+      const baseUrl = model.baseUrl || auth?.auth?.baseUrl;
+      const apiKey = auth?.auth?.apiKey;
+      if (baseUrl) payload.base_url = baseUrl;
+      if (apiKey) payload.api_key = apiKey;
+    }
     const child = spawn(process.execPath, [STOP_HOOK, "--agent", "Pi"], {
       detached: true,
       stdio: ["pipe", "ignore", "ignore"],
@@ -45,7 +64,7 @@ export default function (pi: ExtensionAPI) {
     // Fire and forget: a dead notifier must never surface in the session.
     child.on("error", () => {});
     child.stdin.on("error", () => {});
-    child.stdin.end(JSON.stringify({ last_user_message: lastUser, last_assistant_message: lastAssistant }));
+    child.stdin.end(JSON.stringify(payload));
     child.unref();
   });
 }

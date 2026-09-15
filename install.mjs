@@ -1,6 +1,6 @@
 // Install the WxPusher "task done" notifier from this folder onto this machine.
 //
-//   node install.mjs [--host <label>] [--config <file>] [--dry-run]
+//   node install.mjs [--host <label>] [--proxy <url>] [--config <file>] [--dry-run]
 //
 // Copies send-wxpusher-stop.mjs to ~/.codex/, the Pi extension to
 // ~/.pi/agent/extensions/ (when Pi is installed), writes ~/.codex/wxpusher.json,
@@ -61,9 +61,14 @@ if (!config.spt) {
 
 const current = readJson(path.join(CODEX_DIR, "wxpusher.json"), {});
 const host = opt("--host") || current.host;
+// Per-machine too: some upstreams (b.ai from this laptop) are only reachable
+// through the local clash/mihomo, and Node ignores the Windows system proxy.
+const proxy = opt("--proxy") || current.proxy;
 const next = { ...config };
 delete next.host;
 if (host) next.host = host;
+if (next.proxy) delete next.proxy;
+if (proxy) next.proxy = proxy;
 
 write(script, fs.readFileSync(path.join(HERE, SCRIPT_NAME), "utf8"));
 if (fs.existsSync(path.join(HOME, ".pi", "agent", "settings.json"))) {
