@@ -1,0 +1,11 @@
+{
+  "spt": "SPT_xxxx",
+  "uids": [
+    "UID_xxxx"
+  ],
+  "summary": {
+    "base_url": "https://api.b.ai/v1",
+    "api_key": "sk-xxxx",
+    "model": "qwen3.8-flash"
+  }
+}
