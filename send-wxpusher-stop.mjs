@@ -1,5 +1,5 @@
 // WxPusher stop notification for Codex (Stop hook) and Pi (agent_settled extension).
-// Deployed by agent-bootstrap; edit agent-bootstrap/files/send-wxpusher-stop.mjs instead.
+// Deployed by install.mjs in this folder; edit ~/wxpusher/send-wxpusher-stop.mjs instead.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

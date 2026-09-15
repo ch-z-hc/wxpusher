@@ -1,5 +1,5 @@
-// WxPusher "task done" push for Pi. Deployed by agent-bootstrap into
-// ~/.pi/agent/extensions/; edit agent-bootstrap/files/codex-stop-wxpusher.ts.
+// WxPusher "task done" push for Pi. Deployed by install.mjs in this folder into
+// ~/.pi/agent/extensions/; edit ~/wxpusher/codex-stop-wxpusher.ts instead.
 import { spawn } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
