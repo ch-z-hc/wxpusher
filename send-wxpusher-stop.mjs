@@ -186,16 +186,16 @@ async function summarize(config, input) {
   // candidate, direct and proxied race, because Node ignores the Windows system
   // proxy and some upstreams are only reachable through the local clash/mihomo.
   for (const target of endpointCandidates(config, input)) {
-    const text = await raceRoutes(target, context, proxy);
+    const text = await raceRoutes(target, context, proxy, config);
     if (text) return text;
   }
   return "";
 }
 
-async function raceRoutes(target, context, proxy) {
+async function raceRoutes(target, context, proxy, config) {
   const tries = [summaryCall(target, context)];
   if (proxy && !process.env.WXPUSHER_SUMMARIZE_ONLY) {
-    tries.push(summarizeViaProxy(proxy, target, context));
+    tries.push(summarizeViaProxy(proxy, target, context, config));
   }
   const racers = tries.map((p) => p.then((text) => (text ? text : Promise.reject(new Error("empty")))));
   try {
@@ -207,13 +207,16 @@ async function raceRoutes(target, context, proxy) {
 
 // One-shot child that repeats a single summary call with the proxy in its env.
 // The recap travels behind a marker so unrelated output can't be mistaken for it.
-function summarizeViaProxy(proxy, target, context) {
+// `node` in the config pins the interpreter: NODE_USE_ENV_PROXY needs Node 24+, and
+// a machine may run an older Node globally (chzhc.cn has 22 for its PM2 sites).
+function summarizeViaProxy(proxy, target, context, config = {}) {
+  const nodeBin = (typeof config.node === "string" && config.node.trim()) || process.execPath;
   return new Promise((resolve) => {
     let tmp = "";
     try {
       tmp = path.join(os.tmpdir(), `wxpusher-sum-${process.pid}-${Date.now()}.json`);
       fs.writeFileSync(tmp, JSON.stringify({ target, context }), "utf8");
-      const child = spawn(process.execPath, [process.argv[1], "--summarize-only", tmp], {
+      const child = spawn(nodeBin, [process.argv[1], "--summarize-only", tmp], {
         env: { ...process.env, WXPUSHER_SUMMARIZE_ONLY: "1", NODE_USE_ENV_PROXY: "1",
                HTTP_PROXY: proxy, HTTPS_PROXY: proxy },
         stdio: ["ignore", "pipe", "ignore"],
