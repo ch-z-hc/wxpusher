@@ -182,14 +182,22 @@ async function summarize(config, input) {
   if (!answer && !request) return "";
   const context = [request && `用户：${request}`, answer && `助手：${answer}`].join("\n");
   const proxy = (config.proxy || "").trim();
-  const direct = summarizeEach(endpointCandidates(config, input), context);
-  if (!proxy || process.env.WXPUSHER_SUMMARIZE_ONLY) return await direct;
-  // Direct and proxied go out at the same time: on this laptop b.ai needs the
-  // local proxy and aizex is sometimes slower through it than not, so guessing
-  // an order only adds a timeout's worth of waiting. Node ignores the Windows
-  // system proxy, hence the proxied copy runs as a child with the env set.
-  const racers = [direct, summarizeViaProxy(proxy, input)].map((p) =>
-    p.then((text) => (text ? text : Promise.reject(new Error("empty")))));
+  // Candidates stay in preference order (the agent's own model first); within one
+  // candidate, direct and proxied race, because Node ignores the Windows system
+  // proxy and some upstreams are only reachable through the local clash/mihomo.
+  for (const target of endpointCandidates(config, input)) {
+    const text = await raceRoutes(target, context, proxy);
+    if (text) return text;
+  }
+  return "";
+}
+
+async function raceRoutes(target, context, proxy) {
+  const tries = [summaryCall(target, context)];
+  if (proxy && !process.env.WXPUSHER_SUMMARIZE_ONLY) {
+    tries.push(summarizeViaProxy(proxy, target, context));
+  }
+  const racers = tries.map((p) => p.then((text) => (text ? text : Promise.reject(new Error("empty")))));
   try {
     return await Promise.any(racers);
   } catch {
@@ -197,22 +205,14 @@ async function summarize(config, input) {
   }
 }
 
-async function summarizeEach(candidates, context) {
-  for (const target of candidates) {
-    const text = await summaryCall(target, context);
-    if (text) return text;
-  }
-  return "";
-}
-
-// One-shot child that repeats the summary chain with the proxy in its env.
-// The recap travels behind a marker so unrelated stdout can't be mistaken for it.
-function summarizeViaProxy(proxy, input) {
+// One-shot child that repeats a single summary call with the proxy in its env.
+// The recap travels behind a marker so unrelated output can't be mistaken for it.
+function summarizeViaProxy(proxy, target, context) {
   return new Promise((resolve) => {
     let tmp = "";
     try {
       tmp = path.join(os.tmpdir(), `wxpusher-sum-${process.pid}-${Date.now()}.json`);
-      fs.writeFileSync(tmp, JSON.stringify(input));
+      fs.writeFileSync(tmp, JSON.stringify({ target, context }), "utf8");
       const child = spawn(process.execPath, [process.argv[1], "--summarize-only", tmp], {
         env: { ...process.env, WXPUSHER_SUMMARIZE_ONLY: "1", NODE_USE_ENV_PROXY: "1",
                HTTP_PROXY: proxy, HTTPS_PROXY: proxy },
@@ -298,11 +298,10 @@ async function main() {
   const agent = agentOf();
   const summarizeOnly = argOf("--summarize-only");
   if (summarizeOnly) {
-    // Proxy-retry helper: print the recap on stdout, never push.
+    // Proxy helper mode: one summary call, printed behind the marker, never pushes.
     try {
-      const input = JSON.parse(fs.readFileSync(summarizeOnly, "utf8"));
-      const config = JSON.parse(fs.readFileSync(CONFIG, "utf8"));
-      const text = await summarize(config, input);
+      const job = JSON.parse(fs.readFileSync(summarizeOnly, "utf8"));
+      const text = await summaryCall(job.target, job.context);
       if (text) process.stdout.write(SUMMARY_MARKER + text);
     } catch { /* no recap is fine, the fallback still gets pushed */ }
     return;
