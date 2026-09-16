@@ -1,2 +1,2 @@
-sync.sh text eol=lf
-*.ps1 text eol=crlf
+# 这个仓库的脚本三台共用，统一 LF，免得 Windows checkout 出 CRLF
+* text eol=lf
