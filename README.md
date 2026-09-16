@@ -32,17 +32,18 @@
 
 ## 安装
 
-需要 Node 18+（用到了 `fetch`）。
+需要 Node 18+（用到了 `fetch`；要走代理拿 recap 的话得 Node 24+）。
 
 ```sh
-cp wxpusher.example.json wxpusher.json   # 填 spt / uids / summary
-node install.mjs --dry-run               # 先看要动什么
-node install.mjs --host acer             # 装，并给这台机器起个名字
+git clone https://github.com/ch-z-hc/wxpusher.git && cd wxpusher
+cp wxpusher.example.json wxpusher.json   # 填 spt / uids
+node install.mjs --dry-run                # 先看要动什么
+node install.mjs --host acer --proxy http://127.0.0.1:7897   # 装，给这台机器起名，顺便声明代理
 ```
 
-`host` 只存在部署出来的 `~/.codex/wxpusher.json` 里：仓库的 `wxpusher.json` 不带 host，`--host` 没给就沿用机器上已有的。几台机器 hostname 撞在一起是常事，手机得分得清。
+`host`（推送里显示哪台电脑）和 `proxy`（取 recap 时走哪个代理）只存在部署出来的 `~/.codex/wxpusher.json` 里：仓库的 `wxpusher.json` 不带这两项，`--host` / `--proxy` 没给就沿用机器上已有的。几台机器 hostname 撞在一起是常事，手机得分得清；而 b.ai 这类端点不是每台都能直连。
 
-换电脑时：拷这个目录 → `cp wxpusher.example.json wxpusher.json` 填上凭据 → `node install.mjs --host <名字>`。
+以后更新：`git pull && node install.mjs`。
 
 ## 排错
 
